@@ -3,15 +3,17 @@
 .PHONY: all build clean
 
 TARGET=libtini.a
-C_SOURCES:=inih/ini.c tini.c
-OBJECTS:=$(patsubst %.c,%.o,$(C_SOURCES))
+SRC:=inih/ini.c tini.c
+OBJ:=$(SRC:.c=.o)
+DEP:=$(OBJ:.o=.d)
 
 CC:=gcc
 AR:=ar
 
-CFLAGS:=-std=gnu90 -fPIC -fmax-errors=3 -Wall -Wextra -Werror
 INCLUDES:=-I./include
-DEFS:=-DINI_MAX_LINE=1024 -DINI_USE_STACK=0
+DEFS:=-DINI_MAX_LINE=1024 -DINI_USE_STACK=0 -DTINI_FEATURE_GET_PARAMETERS_STORAGE
+CFLAGS:=-std=gnu90 -fPIC -fmax-errors=3 -Wall -Wextra -Werror $(DEFS) $(INCLUDES)
+CPPFLAGS:=-MMD -MP
 ARFLAGS:=
 
 ifeq ("$(DEBUG)", "1")
@@ -27,11 +29,11 @@ build: $(TARGET)
 clean:
 	echo Cleaning $(TARGET)...
 	-rm -f $(TARGET)
-	-rm -f *.o
-	-rm -f inih/*.o
+	-rm -f *.o inih/*.o
+	-rm -f *.d inih/*.o
 
-$(TARGET): $(OBJECTS)
+-include $(DEP)
+
+$(TARGET): $(OBJ)
 	ar rvs $(ARFLAGS) $@ $^
 
-%.o: %.c
-	$(CC) -o $@ $(INCLUDES) $(CFLAGS) $(DEFS) -c $<
