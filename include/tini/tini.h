@@ -75,8 +75,15 @@ ini_file* tini_create_ini(void);
 void tini_free_ini(ini_file* ini);
 
 ini_file* tini_load_ini(const char* file_path);
+
+#ifdef TINI_FEATURE_SAVE_INI
 int tini_save_ini(const ini_file* ini, const char* file_path);
+#endif
+
+#if defined(TINI_FEATURE_SAVE_INI) || defined(TINI_FEATURE_DUMP_INI)
 int tini_dump_ini(const ini_file* ini, FILE* f);
+#endif
+
 
 int tini_initialize_ini(ini_file* ini);
 void tini_cleanup_ini(ini_file* ini);
@@ -87,19 +94,28 @@ void tini_free_section(ini_section* section);
 int tini_add_parameter(ini_file* ini, const char* section, const char* key, const char* value, int replace);
 int tini_add_parameter_to_section(ini_section* section, const char* key, const char* value, int replace);
 
+#ifdef TINI_FEATURE_EDIT_INI_FILE
 int tini_remove_section(ini_file* ini, const char* section);
 int tini_remove_parameter(ini_file* ini, const char* section, const char* key);
+#endif
 
 const ini_section* tini_find_section(const ini_file* ini, const char* section);
 const char* tini_find_parameter_in_section(const ini_section* section, const char* key, const char* default_value);
 const char* tini_find_parameter(const ini_file* ini, const char* section, const char* key, const char* default_value);
 
+#ifdef TINI_FEATURE_GET_ELEMENT_COUNT
+size_t tini_get_section_count(const ini_file* ini);
 size_t tini_get_parameter_count(const ini_section* section);
+#endif
+
+#ifdef TINI_FEATURE_GET_PARAMETERS_STORAGE
 const char* const* tini_get_keys(const ini_section* section);
 const char* const* tini_get_values(const ini_section* section);
+#endif
 
-size_t tini_get_section_count(const ini_file* ini);
+#ifdef TINI_FEATURE_GET_SECTIONS_STORAGE
 const ini_section* const* tini_get_sections(const ini_file* ini);
+#endif
 
 #ifdef __cplusplus
 } // extern "C"

@@ -77,6 +77,8 @@ static size_t find_parameter_index_in_section(const ini_section* section, const 
 	return 0;
 }
 
+#ifdef TINI_FEATURE_EDIT_INI_FILE
+
 static void remove_section_by_index(ini_file* ini, size_t index) {
 	tini_free_section(ini->sections[index]);
 	if(index < ini->section_count - 1) {
@@ -85,6 +87,8 @@ static void remove_section_by_index(ini_file* ini, size_t index) {
 	}
 	--ini->section_count;	
 }
+
+#endif
 
 static int ini_file_handler(void* user, const char* section, const char* name, 
 			    const char* value)
@@ -209,6 +213,8 @@ ini_file* tini_load_ini(const char* file_path) {
 	return ini;
 }
 
+#ifdef TINI_FEATURE_SAVE_INI
+
 int tini_save_ini(const ini_file* ini, const char* file_path) {
 	int res = -1;
 	FILE* f = fopen(file_path, "w");
@@ -221,6 +227,10 @@ int tini_save_ini(const ini_file* ini, const char* file_path) {
 	}
 	return res;
 }
+
+#endif
+
+#if defined(TINI_FEATURE_SAVE_INI) || defined(TINI_FEATURE_SAVE_INI)
 
 int tini_dump_ini(const ini_file* ini, FILE* f) {
 	size_t i, j;
@@ -237,6 +247,8 @@ int tini_dump_ini(const ini_file* ini, FILE* f) {
 	}
 	return 0;
 }
+
+#endif
 
 ini_section* tini_new_section(const char* name) {
 	ini_section* section = malloc(sizeof(ini_section));
@@ -325,6 +337,8 @@ int tini_add_parameter_to_section(ini_section* section, const char* key, const c
 	}
 }
 
+#ifdef TINI_FEATURE_EDIT_INI
+
 int tini_remove_section(ini_file* ini, const char* section) {
 	size_t i = find_section_index(ini, section);
 	if (i == 0) {
@@ -367,6 +381,8 @@ int tini_remove_parameter(ini_file* ini, const char* section, const char* key) {
 	}
 }
 
+#endif
+
 const ini_section* tini_find_section(const ini_file* ini, const char* section) {
 	size_t i = find_section_index(ini, section);
 	return i == 0 ? NULL : ini->sections[i - 1];
@@ -382,9 +398,19 @@ const char* tini_find_parameter(const ini_file* ini, const char* section, const 
 	return s ? tini_find_parameter_in_section(s, key, default_value) : default_value;
 }
 
+#ifdef TINI_FEATURE_GET_ELEMENT_COUNT
+
 size_t tini_get_parameter_count(const ini_section* section) {
 	return section->parameter_count;
 }
+
+size_t tini_get_section_count(const ini_file* ini) {
+	return ini->section_count;
+}
+
+#endif
+
+#ifdef TINI_FEATURE_GET_PARAMETERS_STORAGE
 
 const char* const* tini_get_keys(const ini_section* section) {
 	return (const char* const*)section->keys;
@@ -394,11 +420,12 @@ const char* const* tini_get_values(const ini_section* section) {
 	return (const char* const*)section->values;
 }
 
-size_t tini_get_section_count(const ini_file* ini) {
-	return ini->section_count;
-}
+#endif
+
+#ifdef TINI_FEATURE_GET_SECTIONS_STORAGE
 
 const ini_section* const* tini_get_sections(const ini_file* ini) {
 	return (const ini_section* const*)ini->sections;
 }
 
+#endif
