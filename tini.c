@@ -108,6 +108,21 @@ static int grow_section_storage(ini_file* ini) {
 	return -1;
 }
 
+static int grow_parameter_storage(ini_section* section) {
+	size_t new_max_parameter_count = section->max_parameter_count + TINI_PARAMETER_STORAGE_SIZE_INCREMENT;
+	char** new_keys = realloc(section->keys, sizeof(char*) * (new_max_parameter_count + 1) * 2);
+	if (new_keys) {
+		char** old_values = new_keys + section->max_parameter_count + 1;
+		char** new_values = new_keys + new_max_parameter_count + 1;
+		memmove(new_values, old_values, sizeof(char*) * (section->parameter_count + 1));
+		section->keys = new_keys;
+		section->values = new_values;
+		section->max_parameter_count = new_max_parameter_count;
+		return 0;
+	}
+	return -1;	
+}
+
 static void cleanup_section(ini_section* section) {
 	size_t i;
 	for (i = 0; i < section->parameter_count; ++i) {
@@ -165,22 +180,6 @@ static void cleanup_ini(ini_file* ini) {
 	}
 	free(ini->sections);
 }
-
-int grow_parameter_storage(ini_section* section) {
-	size_t new_max_parameter_count = section->max_parameter_count + TINI_PARAMETER_STORAGE_SIZE_INCREMENT;
-	char** new_keys = realloc(section->keys, sizeof(char*) * (new_max_parameter_count + 1) * 2);
-	if (new_keys) {
-		char** old_values = new_keys + section->max_parameter_count + 1;
-		char** new_values = new_keys + new_max_parameter_count + 1;
-		memmove(new_values, old_values, sizeof(char*) * (section->parameter_count + 1));
-		section->keys = new_keys;
-		section->values = new_values;
-		section->max_parameter_count = new_max_parameter_count;
-		return 0;
-	}
-	return -1;	
-}
-
 
 ini_file* tini_create_ini(void) {
 	ini_file* ini = malloc(sizeof(ini_file));
