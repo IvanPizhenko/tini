@@ -45,72 +45,100 @@ licensing conditions, is included in the subfolder inih.
 #include <tini/tini.h>
 #include "inih/ini.h"
 
+/* INI section data structure */
 struct _ini_section {
-	char* name;
-	char** keys;
-	char** values;
-	size_t parameter_count;
-	size_t max_parameter_count;	
+	char* name; /* section name */
+	char** keys; /* array of parameter names */
+	char** values; /* array of parameter values */
+	size_t parameter_count; /* current number of parameters */
+	size_t max_parameter_count; /* maximum number of parameters for which memory is currently allocated */
 };
 
 struct _ini_file {
-	ini_section** sections;
-	size_t section_count;
-	size_t max_section_count;
+	ini_section** sections; /* array of INI file sections */
+	size_t section_count; /* number  of sections */
+	size_t max_section_count; /* maximum number of parameters for which memory is currently allocated */
 };
 
 static size_t find_section_index(const ini_file* ini, const char* section) {
 	size_t i;
+	
+	/* Enumerate all sections, compare section name to the given input, 
+	 * return section index + 1 if match found, otherwise return zero.
+	 */
 	for (i = 0; i < ini->section_count; ++i) {
 		if (strcmp(ini->sections[i]->name, section) == 0)
 			return i + 1;
 	}
+	
 	return 0;
 }
 
 static size_t find_parameter_index_in_section(const ini_section* section, const char* key) {
 	size_t i;
+
+	/* Enumerate all parameter names, compare parameter name to the given input, 
+	 * return parameter index + 1 if match found, otherwise return zero.
+	 */
 	for (i = 0; i < section->parameter_count; ++i) {
 		if(strcmp(section->keys[i], key) == 0)
 			return i + 1;
 	}
-	return 0;
+
+		return 0;
 }
 
 #ifdef TINI_FEATURE_EDIT_INI_FILE
 
 static void remove_section_by_index(ini_file* ini, size_t index) {
+	/* Destroy section object */
 	tini_free_section(ini->sections[index]);
+	
+	/* Pack array of section pointers if removed section was in the beginning or middle */
 	if(index < ini->section_count - 1) {
 		memmove(ini->sections + index, ini->sections + index + 1, 
 			sizeof(ini_section*) * (ini->section_count - index - 1));
 	}
+	
+	/* Decrease current number of sections */
 	--ini->section_count;	
 }
 
 #endif
 
+/* INI file parsing handler for included INIH library. */
 static int ini_file_handler(void* user, const char* section, const char* name, 
 			    const char* value)
 {
+	/* Attempt to parameter to the INI file object, replace duplicates */
 	return tini_add_parameter((ini_file*)user, section, name, value, 1) == 0 
 		? 1 : 0;
 }
 
 static int grow_section_storage(ini_file* ini) {
+	/* Find new storage size */
 	size_t new_max_section_count = ini->max_section_count + TINI_SECTION_STORAGE_SIZE_INCREMENT;
+	
+	/* Reallocate memory */
 	ini_section** new_sections = realloc(ini->sections, sizeof(ini_section*) * new_max_section_count);
+	
+	/* Update INI file object or indicate failure */
 	if (new_sections) {
 		ini->sections = new_sections;
 		ini->max_section_count = new_max_section_count;
 		return 0;
 	}
-	return -1;
+	else return -1;	
 }
 
 static int grow_parameter_storage(ini_section* section) {
+	/* Find new storage size */
 	size_t new_max_parameter_count = section->max_parameter_count + TINI_PARAMETER_STORAGE_SIZE_INCREMENT;
+
+	/* Reallocate memory */
 	char** new_keys = realloc(section->keys, sizeof(char*) * (new_max_parameter_count + 1) * 2);
+
+	/* Update INI file section object or indicate failure */
 	if (new_keys) {
 		char** old_values = new_keys + section->max_parameter_count + 1;
 		char** new_values = new_keys + new_max_parameter_count + 1;
@@ -120,88 +148,123 @@ static int grow_parameter_storage(ini_section* section) {
 		section->max_parameter_count = new_max_parameter_count;
 		return 0;
 	}
-	return -1;	
+	else return -1;	
 }
 
 static void cleanup_section(ini_section* section) {
+	/* Free memory consumed by parameter names and values */
 	size_t i;
 	for (i = 0; i < section->parameter_count; ++i) {
 		free(section->values[i]);
 		free(section->keys[i]);
 	}
+	
+	/* Free memory consumed by parameter names and values storage */
 	free(section->keys);
+
+	/* Free memory consumed by section name */
 	free(section->name);
 }
 
 static int initialize_section(ini_section* section, const char* name) {
-	int saved_errno = 0;
+	/* Save previous errno */
+	int saved_errno = errno;
+
+	/* Create section name*/
 	section->name = strdup(name);
 	if (!section->name) {
 		saved_errno = errno;
 		goto exit_error;
 	}
 	
+	/* Allocate initial storage for parameter names and values */
 	section->keys = malloc(sizeof(const char*) * (TINI_PARAMETER_STORAGE_INITIAL_SIZE + 1) * 2);
 	if (!section->keys) {
 		saved_errno = errno;
 		goto cleanup_name;
 	}
 
+	/* Initialize storage */
 	section->values = section->keys + TINI_PARAMETER_STORAGE_INITIAL_SIZE + 1;
 	*(section->keys) = NULL;
 	*(section->values) = NULL;
+	
+	/* Initialize counts of parameters */
 	section->parameter_count = 0;
 	section->max_parameter_count = TINI_PARAMETER_STORAGE_INITIAL_SIZE;
+	
 	return 0;
 	
 cleanup_name:
+	/* Free memory on error */
 	free(section->name);
 	
 exit_error:
+	/* restore saved errno */
 	errno = saved_errno;
 	return -1;
 }
 
 static int initialize_ini(ini_file* ini) {
+	/* Allocate storage for sections */
 	ini->sections = malloc(sizeof(ini_section*) * TINI_SECTION_STORAGE_INITIAL_SIZE);
+	
+	/* Initialize storage of sections or indicate error */
 	if (ini->sections) {
 		ini->section_count = 0;
 		ini->max_section_count = TINI_SECTION_STORAGE_INITIAL_SIZE;
 		return 0;
 	}
-	return -1;
+	else return -1;
 }
 
 static void cleanup_ini(ini_file* ini) {
+	/* Cleanup all section objects */
 	size_t i;
 	for (i = 0; i < ini->section_count; ++i) {
 		cleanup_section(ini->sections[i]);
 		free(ini->sections[i]);
 	}
+	
+	/* Free sections storage */
 	free(ini->sections);
 }
 
 ini_file* tini_create_ini(void) {
+	/* Allocate memory for INI file object */
 	ini_file* ini = malloc(sizeof(ini_file));
+	
+	/* Initialize object, check result, indicate error if necessary */
 	if (ini && initialize_ini(ini) != 0) {
 		int saved_errno = errno;
 		free(ini);
 		ini = NULL;
 		errno = saved_errno;
 	}
+	
+	/* Returns pointer to object (or NULL) */
 	return ini;
 }
 
 void tini_free_ini(ini_file* ini) {
+	/* By convention, free()-like functions accept NULL input */
 	if (ini) {
+		/* Cleanup object */
 		cleanup_ini(ini);
+		
+		/* free memory */
 		free(ini);
 	}
 }
 
 ini_file* tini_load_ini(const char* file_path) {
+	/* Create INI file object */
 	ini_file* ini = tini_create_ini();
+	
 	if (ini) {
+		/* Parse INI file using INIH library into INI file object, check result, 
+		 * indicate error if necessary.
+		 */
 		if (ini_parse(file_path, &ini_file_handler, ini) < 0) {
 			int saved_errno = errno;
 			free(ini);
@@ -209,21 +272,33 @@ ini_file* tini_load_ini(const char* file_path) {
 			errno = saved_errno;
 		}
 	}
+	
+	/* Returns resulting object */
 	return ini;
 }
 
 #ifdef TINI_FEATURE_SAVE_INI
 
 int tini_save_ini(const ini_file* ini, const char* file_path) {
+	/* Initialize result variable */
 	int res = -1;
+	
+	/* Open file */
 	FILE* f = fopen(file_path, "w");
 	if (f) {
+		/* Dump INI file object into that file */
 		int saved_errno;
 		res = tini_dump_ini(ini, f);
+		
+		/* Close file */
 		saved_errno = errno;
-		fclose(f);
-		errno = saved_errno;
+		if(fclose(f) != 0);
+			res = -1;
+		else
+			errno = saved_errno;
 	}
+	
+	/* Return result */
 	return res;
 }
 
@@ -233,25 +308,38 @@ int tini_save_ini(const ini_file* ini, const char* file_path) {
 
 int tini_dump_ini(const ini_file* ini, FILE* f) {
 	size_t i, j;
+	
+	/* Enumerate all section */
 	for (i = 0; i < ini->section_count; ++i) {
 		const ini_section* s = ini->sections[i];
+		
+		/* Write section header */
 		if(fprintf(f, "[%s]\n", s->name) < 0)
 			return -1;
+		
+		/* Enumerate and write all parameters and values */
 		for (j = 0; j < s->parameter_count; ++j) {
 			if(fprintf(f, "%s=%s\n", s->keys[j], s->values[j]) < 0)
 				return -1;
 		}
+		
+		/* Put empty line between sections */
 		if(fputc('\n', f) == EOF)
 			return -1;
 	}
+	
+	/* Indicate success. */
 	return 0;
 }
 
 #endif
 
 ini_section* tini_new_section(const char* name) {
+	/* Allocate memory for section object */
 	ini_section* section = malloc(sizeof(ini_section));
+	
 	if (section) {
+		/* Initialize section object, check result, indicate error if necessary */
 		if (initialize_section(section, name) != 0) {
 			int saved_errno = errno;
 			free(section);
@@ -259,24 +347,35 @@ ini_section* tini_new_section(const char* name) {
 			errno = saved_errno;
 		}
 	}
+	
+	/* Return resulting object or NULL */
 	return section;
 }
 
 void tini_free_section(ini_section* section) {
+	/* By convention, free()-like functions can accept NULL values */
 	if (section) {
+		/* Cleanup section object */
 		cleanup_section(section);
+		
+		/* Free memory */
 		free(section);
 	}
 }
 
 int tini_add_parameter(ini_file* ini, const char* section, const char* key, const char* value, int replace) {
+	/* Attempt to find section with given name */
 	ini_section* s = (ini_section*) tini_find_section(ini, section);
-	if (s)
+	if (s) {
+		/* Section found - attempt adding parameter into it */
 		return tini_add_parameter_to_section(s, key, value, replace);
-	else {
+	} else {
+		/* Otherwise create new section */
 		s = tini_new_section(section);
 		if (s) {
+			/* Attempt adding parameter to it */
 			if(tini_add_parameter_to_section(s, key, value, replace) == 0) {
+				/* Attempt to add section to sections storage */
 				if(ini->section_count < ini->max_section_count
 					|| (ini->section_count == ini->max_section_count
 					&& grow_section_storage(ini) == 0)) {
@@ -285,28 +384,37 @@ int tini_add_parameter(ini_file* ini, const char* section, const char* key, cons
 				} else
 					return -1;
 			} else {
+				/* Indicate error */
 				int saved_errno = errno;
 				tini_free_section(s);
 				errno = saved_errno;
 				return -1;
 			}
-		} else
+		} else {
+			/* Indicate error */
 			return -1;
+		}
 	}
 }
 
 int tini_add_parameter_to_section(ini_section* section, const char* key, const char* value, int replace) {
+	/* Check whether parameter with given name already exists */
 	size_t i = find_parameter_index_in_section(section, key);
 	if (i == 0) {
+		/* Create parameter name string */
 		char *new_key, *new_value;
 		new_key = strdup(key);
 		if (!new_key)
 			return -1;
+		
+		/* Create parameter value string */
 		new_value = strdup(value);
 		if (!new_value) {
 			free(new_key);
 			return -1;
 		}
+		
+		/* Attempt to add parameter to section, resize parameters storage if necessary */
 		if (section->parameter_count < section->max_parameter_count
 			|| (section->parameter_count == section->max_parameter_count
 			&& grow_parameter_storage(section) == 0)) {
@@ -317,20 +425,24 @@ int tini_add_parameter_to_section(ini_section* section, const char* key, const c
 			section->values[section->parameter_count] = NULL;
 			return 0;
 		} else {
+			/* Free memory and indicate error */
 			free(new_value);
 			free(new_key);
 			return -1;
 		}
-	} else if (replace) {
+	} else if (replace) { /* Parameter exists and we can replace it */
+		/* Create new parameter value string */
 		char* new_value = strdup(value);
 		if (new_value) {
 			--i;
+			/* Free old parameter value string */
 			free(section->values[i]);
+			/* Put new one in place */
 			section->values[i] = new_value;
 			return 0;
 		} else
 			return -1;
-	} else {
+	} else { /* Parameter exists but we can't replace it */
 		errno = EEXIST;
 		return -1;
 	}
@@ -339,11 +451,14 @@ int tini_add_parameter_to_section(ini_section* section, const char* key, const c
 #ifdef TINI_FEATURE_EDIT_INI
 
 int tini_remove_section(ini_file* ini, const char* section) {
+	/* Search for section with given name */
 	size_t i = find_section_index(ini, section);
 	if (i == 0) {
+		/* Section not found, indicate error */
 		errno = ESRCH;
 		return -1;
 	} else {
+		/* Section found, remove it */
 		--i;
 		remove_section_by_index(ini, i);
 		return 0;
@@ -352,29 +467,45 @@ int tini_remove_section(ini_file* ini, const char* section) {
 
 int tini_remove_parameter(ini_file* ini, const char* section, const char* key) {	
 	size_t i, j;
+
+	/* Find section with given name */
 	i = find_section_index(ini, section);
 	if (i == 0) {
+		/* Section not found, indicate error */
 		errno = ESRCH;
 		return -1;
 	} else {
+		/* Section found, find parameter */
 		ini_section* s = ini->sections[--i];
 		j = find_parameter_index_in_section(s, key);
 		if(j == 0) {
+			/* Parameter not found, indicate error */
 			errno = ESRCH;
 			return -1;
 		} else {
+			/* Parameter found */
 			--j;
+			
+			/* Free parameter name and value strings */
 			free(s->values[j]);
 			free(s->keys[j]);
+			
+			/* Pack parameters array if parameter was in the beginning or middle */
 			if(i < s->parameter_count - 1) {
 				memmove(s->keys + i, s->keys + i + 1, 
 					sizeof(char*) * (s->parameter_count - i - 1));
 				memmove(s->values + i, s->values + i + 1, 
 					sizeof(char*) * (s->parameter_count - i - 1));
 			}
+			
+			/* Clear last parameters storage entries, so storage always finishes with NULLs */
 			s->keys[s->parameter_count] = NULL;
 			s->values[s->parameter_count] = NULL;
+			
+			/* Decreate parameter number */
 			--s->parameter_count;
+			
+			/* Indicate success */
 			return 0;
 		}
 	}
@@ -383,17 +514,26 @@ int tini_remove_parameter(ini_file* ini, const char* section, const char* key) {
 #endif
 
 const ini_section* tini_find_section(const ini_file* ini, const char* section) {
+	/* Find section, retrieve its index */
 	size_t i = find_section_index(ini, section);
+	
+	/* If index is valid, return section object, otherwise return NULL */
 	return i == 0 ? NULL : ini->sections[i - 1];
 }
 
 const char* tini_find_parameter_in_section(const ini_section* section, const char* key, const char* default_value) {
+	/* Find parameter, retrieve its index */
 	size_t i = find_parameter_index_in_section(section, key);
+
+	/* If index is valid, return parameter value, otherwise return default value */
 	return i == 0 ? default_value : section->values[i - 1];
 }
 
 const char* tini_find_parameter(const ini_file* ini, const char* section, const char* key, const char* default_value) {
+	/* Find section*/
 	const ini_section* s = tini_find_section(ini, section);
+	
+	/* If section found, attempt find parameter, otherwise return default value */
 	return s ? tini_find_parameter_in_section(s, key, default_value) : default_value;
 }
 
