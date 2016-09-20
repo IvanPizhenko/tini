@@ -365,28 +365,28 @@ void tini_free_section(ini_section* section) {
 
 int tini_add_parameter(ini_file* ini, const char* section, const char* key, const char* value, int replace) {
 	/* Attempt to find section with given name */
-	ini_section* s = (ini_section*) tini_find_section(ini, section);
-	if (s) {
+	ini_section* sectionObj = (ini_section*) tini_find_section(ini, section);
+	if (sectionObj) {
 		/* Section found - attempt adding parameter into it */
-		return tini_add_parameter_to_section(s, key, value, replace);
+		return tini_add_parameter_to_section(sectionObj, key, value, replace);
 	} else {
 		/* Otherwise create new section */
-		s = tini_new_section(section);
-		if (s) {
+		sectionObj = tini_new_section(section);
+		if (sectionObj) {
 			/* Attempt adding parameter to it */
-			if(tini_add_parameter_to_section(s, key, value, replace) == 0) {
+			if(tini_add_parameter_to_section(sectionObj, key, value, replace) == 0) {
 				/* Attempt to add section to sections storage */
 				if(ini->section_count < ini->max_section_count
 					|| (ini->section_count == ini->max_section_count
 					&& grow_section_storage(ini) == 0)) {
-					ini->sections[ini->section_count++] = s;
+					ini->sections[ini->section_count++] = sectionObj;
 					return 0;
 				} else
 					return -1;
 			} else {
 				/* Indicate error */
 				int saved_errno = errno;
-				tini_free_section(s);
+				tini_free_section(sectionObj);
 				errno = saved_errno;
 				return -1;
 			}
@@ -476,7 +476,7 @@ int tini_remove_parameter(ini_file* ini, const char* section, const char* key) {
 		return -1;
 	} else {
 		/* Section found, find parameter */
-		ini_section* s = ini->sections[--i];
+		ini_section* sectionObj = ini->sections[--i];
 		j = find_parameter_index_in_section(s, key);
 		if(j == 0) {
 			/* Parameter not found, indicate error */
@@ -487,23 +487,23 @@ int tini_remove_parameter(ini_file* ini, const char* section, const char* key) {
 			--j;
 			
 			/* Free parameter name and value strings */
-			free(s->values[j]);
-			free(s->keys[j]);
+			free(sectionObj->values[j]);
+			free(sectionObj->keys[j]);
 			
 			/* Pack parameters array if parameter was in the beginning or middle */
 			if(i < s->parameter_count - 1) {
-				memmove(s->keys + i, s->keys + i + 1, 
-					sizeof(char*) * (s->parameter_count - i - 1));
-				memmove(s->values + i, s->values + i + 1, 
-					sizeof(char*) * (s->parameter_count - i - 1));
+				memmove(sectionObj->keys + i, sectionObj->keys + i + 1, 
+					sizeof(char*) * (sectionObj->parameter_count - i - 1));
+				memmove(sectionObj->values + i, sectionObj->values + i + 1, 
+					sizeof(char*) * (sectionObj->parameter_count - i - 1));
 			}
 			
 			/* Clear last parameters storage entries, so storage always finishes with NULLs */
-			s->keys[s->parameter_count] = NULL;
-			s->values[s->parameter_count] = NULL;
+			s->keys[sectionObj->parameter_count] = NULL;
+			s->values[sectionObj->parameter_count] = NULL;
 			
 			/* Decreate parameter number */
-			--s->parameter_count;
+			--sectionObj->parameter_count;
 			
 			/* Indicate success */
 			return 0;
@@ -531,10 +531,10 @@ const char* tini_find_parameter_in_section(const ini_section* section, const cha
 
 const char* tini_find_parameter(const ini_file* ini, const char* section, const char* key, const char* default_value) {
 	/* Find section*/
-	const ini_section* s = tini_find_section(ini, section);
+	const ini_section* sectionObj = tini_find_section(ini, section);
 	
 	/* If section found, attempt find parameter, otherwise return default value */
-	return s ? tini_find_parameter_in_section(s, key, default_value) : default_value;
+	return sectionObj ? tini_find_parameter_in_section(sectionObj, key, default_value) : default_value;
 }
 
 #ifdef TINI_FEATURE_GET_ELEMENT_COUNT
