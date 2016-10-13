@@ -38,11 +38,11 @@ licensing conditions, is included in the subfolder inih.
 
 =======================================================================================*/
 
-#include <stdio.h>
+#include "include/tini/tini.h"
 #include <errno.h>
-#include <string.h>
 #include <malloc.h>
-#include <tini/tini.h>
+#include <stdio.h>
+#include <string.h>
 #include "inih/ini.h"
 
 /* INI section data structure */
